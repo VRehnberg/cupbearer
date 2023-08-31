@@ -69,8 +69,16 @@ class CornerPixelBackdoor(Backdoor):
 
 
 @dataclass
+<<<<<<< HEAD
 class NoiseBackdoor(Backdoor):
     std: float = 0.3  # Standard deviation of noise
+=======
+class NoiseBackdoor(Transform):
+    p_backdoor: float = 1.0
+    std: float = 0.3
+    target_class: int = 0
+    no_clip: bool = field(action="store_true")
+>>>>>>> 186f0d9 (Bug fix, clip noise)
 
     def inject_backdoor(self, img: torch.Tensor):
         assert torch.all(img <= 1), "Image not in range [0, 1]"
@@ -78,7 +86,26 @@ class NoiseBackdoor(Backdoor):
         img += noise
         img.clip_(0, 1)
 
+<<<<<<< HEAD
         return img
+=======
+    @property
+    def clip(self) -> bool:
+        return not self.no_clip
+
+    def __call__(self, sample: Tuple[np.ndarray, int]):
+        img, target = sample
+        if torch.rand(1) <= self.p_backdoor:
+            assert self.no_clip or np.all(img <= 1), "Image not in range [0, 1]"
+            noise = np.random.normal(0, self.std, img.shape)
+            img = img + noise
+            if self.clip:
+                img = np.clip(img, 0, 1)
+
+            target = self.target_class
+
+        return img, target
+>>>>>>> 186f0d9 (Bug fix, clip noise)
 
 
 @dataclass
