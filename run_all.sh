@@ -6,7 +6,7 @@ mkdir -p $root_dir
 cd "$root_dir"
 
 outputfile="$(realpath "results_$(date +%Y-%m-%d_%H-%M-%S).csv")"
-echo "Model,Dataset,Backdoor,Detector,AUC_ROC,AP" >> "${outputfile}"
+echo "Model,Dataset,Backdoor,Detector,Train acc.,AUC_ROC,AP" >> "${outputfile}"
 
 models=( "mlp" "cnn" )
 datasets=( "mnist" "cifar10" )
@@ -21,6 +21,7 @@ for model in "${models[@]}"; do
         for backdoor in "${backdoors[@]}"; do
 
             task_dir="${model}/${dataset}/${backdoor}/$(date +%Y-%m-%d_%H-%M-%S)/"
+            # TODO second might not be unique if run in parallel
             mkdir -p "$task_dir"
 
             # Train classifier
@@ -31,6 +32,8 @@ for model in "${models[@]}"; do
                 --train_data.backdoor "$backdoor" \
                 --train_data.backdoor.p_backdoor "0.1" \
                 --model "$model"
+
+            train_acc=$(jq -r '.["10"]["train/accuracy"]' "${task_dir}/metrics.json")
 
             for detector in "${detectors[@]}"; do
 
@@ -58,7 +61,7 @@ for model in "${models[@]}"; do
 
                 auc_roc=$(jq -r ".AUC_ROC" "${eval_dir}/eval.json")
                 ap=$(jq -r ".AP" "${eval_dir}/eval.json")
-                echo "${model},${dataset},${backdoor},${detector},${auc_roc},${ap}" >> "${outputfile}"
+                echo "${model},${dataset},${backdoor},${detector},${train_acc},${auc_roc},${ap}" >> "${outputfile}"
 
             done
         done
