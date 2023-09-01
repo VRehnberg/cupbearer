@@ -6,7 +6,7 @@ mkdir -p $root_dir
 cd "$root_dir"
 
 outputfile="$(realpath "results_$(date +%Y-%m-%d_%H-%M-%S).csv")"
-echo "Model,Dataset,Backdoor,Detector,Train acc.,AUC_ROC,AP" >> "${outputfile}"
+echo "Model,Dataset,Backdoor,Detector,Train acc.,AUC_ROC,AP,Timestamp Model,Timestamp Detector" >> "${outputfile}"
 
 models=( "mlp" "cnn" )
 datasets=( "mnist" "cifar10" )
@@ -20,7 +20,8 @@ for model in "${models[@]}"; do
 
         for backdoor in "${backdoors[@]}"; do
 
-            task_dir="${model}/${dataset}/${backdoor}/$(date +%Y-%m-%d_%H-%M-%S)/"
+            ts_model="$(date +%Y-%m-%d_%H-%M-%S)"
+            task_dir="${model}/${dataset}/${backdoor}/${ts_model}/"
             # TODO second might not be unique if run in parallel
             mkdir -p "$task_dir"
 
@@ -38,7 +39,8 @@ for model in "${models[@]}"; do
             for detector in "${detectors[@]}"; do
 
                 # Train detector
-                detector_dir="$task_dir"/"$detector"/"$(date +%Y-%m-%d_%H-%M-%S)"/
+                ts_detector="$(date +%Y-%m-%d_%H-%M-%S)"
+                detector_dir="${task_dir}/${detector}/${ts_detector}/"
                 mkdir -p "$detector_dir"
 
                 python -m cupbearer.scripts.train_detector \
@@ -61,7 +63,7 @@ for model in "${models[@]}"; do
 
                 auc_roc=$(jq -r ".AUC_ROC" "${eval_dir}/eval.json")
                 ap=$(jq -r ".AP" "${eval_dir}/eval.json")
-                echo "${model},${dataset},${backdoor},${detector},${train_acc},${auc_roc},${ap}" >> "${outputfile}"
+                echo "${model},${dataset},${backdoor},${detector},${train_acc},${auc_roc},${ap},${ts_model},${ts_detector}" >> "${outputfile}"
 
             done
         done
