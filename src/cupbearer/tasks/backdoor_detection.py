@@ -4,12 +4,13 @@ from dataclasses import dataclass
 import simple_parsing
 
 from cupbearer.data import (
+    Backdoor,
     CornerPixelBackdoor,
     NoiseBackdoor,
-    Transform,
     WanetBackdoor,
 )
 from cupbearer.data.backdoor_data import BackdoorData
+from cupbearer.data.data_group import DataGroupConfig
 from cupbearer.models import StoredModel
 from cupbearer.utils.scripts import load_config
 
@@ -19,7 +20,7 @@ from . import TaskConfig
 @dataclass(kw_only=True)
 class BackdoorDetection(TaskConfig):
     no_load: bool = simple_parsing.field(action="store_true")
-    backdoor: Transform = simple_parsing.subgroups(
+    backdoor: Backdoor = simple_parsing.subgroups(
         {
             "corner": CornerPixelBackdoor,
             "noise": NoiseBackdoor,
@@ -28,9 +29,9 @@ class BackdoorDetection(TaskConfig):
     )
 
     def _init_train_data(self):
-        data_cfg = load_config(self.get_path(), "train_data", BackdoorData)
+        data_cfg = load_config(self.get_path(), "data", DataGroupConfig)
         # Remove the backdoor
-        self._train_data = data_cfg.original
+        self._train_data = data_cfg.train
 
     def _get_anomalous_test_data(self):
         copy = deepcopy(self._train_data)

@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+from functools import partial
 
+import numpy as np
 import pytest
 
 # We shouldn't import TestDataMix directly because that will make pytest think
@@ -29,8 +31,42 @@ class DummyConfig(data.DatasetConfig):
     # Doesn't apply or matter
     num_classes: int = 0
 
-    def _build(self) -> Dataset:
+    def build(self) -> Dataset:
         return DummyDataset(self.length, self.value)
+
+
+class DummyImageData(Dataset):
+    def __init__(self, length: int, num_classes: int, shape: tuple[int, int]):
+        self.length = length
+        self.num_classes = num_classes
+        self.img = np.array(
+            [
+                [[i_y % 2, i_x % 2, (i_x + i_y) % 2] for i_x in range(shape[1])]
+                for i_y in range(shape[0])
+            ],
+            dtype=np.float32,
+        )
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, index) -> tuple[np.ndarray, int]:
+        if index >= self.length:
+            raise IndexError
+        return self.img, np.random.randint(self.num_classes)
+
+
+@dataclass
+class DummyImageConfig(data.DatasetConfig):
+    length: int
+    num_classes: int = 10
+    shape: tuple[int, int] = (8, 8)
+
+    def build(self) -> Dataset:
+        return DummyImageData(self.length, self.num_classes, self.shape)
+
+
+# === Tests for TestDataMix ===
 
 
 @pytest.fixture
@@ -119,3 +155,197 @@ def test_mixed_max_size(clean_config, anomalous_config):
         assert mixed_data[i] == ("a", 0)
     for i in range(3, 10):
         assert mixed_data[i] == ("b", 1)
+
+
+# === Tests for Backdoors ===
+
+
+# @pytest.fixture
+# def clean_image_dataset():
+#    return DummyImageDataset(9)
+
+
+@pytest.fixture
+def clean_image_config():
+    return DummyImageConfig(9)
+
+
+@pytest.fixture(
+    params=[
+        data.backdoors.CornerPixelBackdoor,
+        data.backdoors.NoiseBackdoor,
+        data.backdoors.WanetBackdoor,
+    ]
+)
+def BackdoorConfig(request):
+    return request.param
+
+
+def test_backdoor_relabeling(clean_image_config, BackdoorConfig):
+    clean_image_config.num_classes = 2**63 - 1
+    target_class = 1
+    data_config = data.BackdoorData(
+        original=clean_image_config,
+        backdoor=BackdoorConfig(
+            p_backdoor=1.0,
+            target_class=target_class,
+        ),
+    )
+    for img, label in data_config.build():
+        assert label == target_class
+
+
+def test_backdoor_img_changes(clean_image_config, BackdoorConfig):
+    clean_config = data.BackdoorData(
+        original=clean_image_config,
+        backdoor=BackdoorConfig(
+            p_backdoor=0.0,
+        ),
+    )
+    anomalous_config = data.BackdoorData(
+        original=clean_image_config,
+        backdoor=BackdoorConfig(
+            p_backdoor=1.0,
+        ),
+    )
+    for (clean_img, _), (anomalous_img, _) in zip(
+        clean_config.build(),
+        anomalous_config.build(),
+    ):
+        # Check that something has changed
+        assert not np.all(clean_img == anomalous_img)
+
+        # Check that pixel values still in valid range
+        assert np.min(clean_img) >= 0
+        assert np.min(anomalous_img) >= 0
+        assert np.max(clean_img) <= 1
+        assert np.max(anomalous_img) <= 1
+
+        # Check that backdoor overall applies a small change on average
+        assert np.mean(clean_img - anomalous_img) < (
+            1.0 / np.sqrt(np.prod(clean_img.shape))
+        )
+
+
+def test_wanet_backdoor(clean_image_config):
+    clean_image_config.num_classes = 2**63 - 1
+    target_class = 1
+    clean_config = data.BackdoorData(
+        original=clean_image_config,
+        backdoor=data.backdoors.WanetBackdoor(
+            p_backdoor=0.0,
+            target_class=target_class,
+        ),
+    )
+    anomalous_config = data.BackdoorData(
+        original=clean_image_config,
+        backdoor=data.backdoors.WanetBackdoor(
+            p_backdoor=1.0,
+            target_class=target_class,
+        ),
+    )
+    noise_config = data.BackdoorData(
+        original=clean_image_config,
+        backdoor=data.backdoors.WanetBackdoor(
+            p_backdoor=0.0,
+            p_noise=1.0,
+            target_class=target_class,
+        ),
+    )
+    for (
+        (clean_img, clean_label),
+        (anoma_img, anoma_label),
+        (noise_img, noise_label),
+    ) in zip(
+        clean_config.build(),
+        anomalous_config.build(),
+        noise_config.build(),
+    ):
+        # Check labels
+        assert clean_label != target_class
+        assert anoma_label == target_class
+        assert noise_label != target_class
+
+        # Check that something has changed
+        assert np.any(clean_img != anoma_img)
+        assert np.any(clean_img != noise_img)
+        assert np.any(anoma_img != noise_img)
+
+        # Check that pixel values still in valid range
+        assert np.min(clean_img) >= 0
+        assert np.min(anoma_img) >= 0
+        assert np.min(noise_img) >= 0
+        assert np.max(clean_img) <= 1
+        assert np.max(anoma_img) <= 1
+        assert np.max(noise_img) <= 1
+
+
+# === Test DataGroupConfig ===
+
+
+def test_data_group_val_default(clean_image_config, BackdoorConfig):
+    data_group = data.DataGroupConfig(
+        train=data.BackdoorData(
+            original=clean_image_config,
+            backdoor=BackdoorConfig(),
+        ),
+    )
+    for sample in data_group.train.build():
+        img, label = sample
+        break
+
+
+@pytest.fixture(
+    params=[
+        data.backdoors.CornerPixelBackdoor,
+        data.backdoors.WanetBackdoor,
+    ]
+)
+def DeterministicBackdoorConfig(request):
+    return partial(request.param, p_backdoor=1.0)
+
+
+def test_data_group_same_backdoor(clean_image_config, DeterministicBackdoorConfig):
+    def get_backdoor_data():
+        return data.BackdoorData(
+            original=clean_image_config,
+            backdoor=DeterministicBackdoorConfig(p_backdoor=1.0),
+        )
+
+    # Test with all
+    data_group = data.DataGroupConfig(
+        train=get_backdoor_data(),
+        val=data.ValidationConfig(
+            val=get_backdoor_data(),
+            clean=get_backdoor_data(),  # not actually clean
+            custom=get_backdoor_data(),
+            backdoor=get_backdoor_data(),
+        ),
+    )
+    for samples in zip(
+        data_group.train.build(),
+        data_group.val.val.build(),
+        data_group.val.clean.build(),
+        data_group.val.custom.build(),
+        data_group.val.backdoor.build(),
+    ):
+        imgs, labels = zip(*samples)
+        assert all(np.allclose(imgs[0], img) for img in imgs)
+        assert all(labels[0] == label for label in labels)
+
+    # Test with some to see that NoData works as expected
+    data_group = data.DataGroupConfig(
+        train=get_backdoor_data(),
+        val=data.ValidationConfig(
+            val=get_backdoor_data(),
+            custom=get_backdoor_data(),
+        ),
+    )
+    for samples in zip(
+        data_group.train.build(),
+        data_group.val.val.build(),
+        data_group.val.custom.build(),
+    ):
+        imgs, labels = zip(*samples)
+        assert all(np.allclose(imgs[0], img) for img in imgs)
+        assert all(labels[0] == label for label in labels)

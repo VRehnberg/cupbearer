@@ -5,7 +5,7 @@ from ._shared import TestDataConfig as TestDataConfig
 from ._shared import TestDataMix as TestDataMix
 from ._shared import numpy_collate as numpy_collate
 from .adversarial import AdversarialExampleConfig
-from .backdoors import CornerPixelBackdoor, NoiseBackdoor, WanetBackdoor
+from .backdoors import Backdoor, CornerPixelBackdoor, NoiseBackdoor, WanetBackdoor
 from .pytorch import CIFAR10, GTSRB, MNIST, PytorchConfig
 from .toy_ambiguous_features import ToyFeaturesConfig
 
@@ -22,6 +22,9 @@ DATASETS = {
 
 TRANSFORMS = {
     "to_numpy": ToNumpy,
+}
+
+BACKDOORS = {
     "corner": CornerPixelBackdoor,
     "noise": NoiseBackdoor,
     "wanet": WanetBackdoor,
@@ -29,10 +32,18 @@ TRANSFORMS = {
 
 register_config_group(DatasetConfig, DATASETS)
 register_config_group(Transform, TRANSFORMS)
+register_config_group(Backdoor, BACKDOORS)
 
 # Need to import this after datasets and transforms have been registered,
-# since BackdoorData uses them in config groups.
+# since BackdoorData and ValidationConfig uses them in config groups.
 # noqa to prevent ruff from moving this line to the top.
 from .backdoor_data import BackdoorData  # noqa
+from .validation_config import ValidationConfig  # noqa
 
 register_config_option(DatasetConfig, "backdoor", BackdoorData)
+register_config_group(ValidationConfig, {"default": ValidationConfig})
+
+# Same here, DataGroupConfig uses ValidationConfig and DatasetConfig
+from .data_group import DataGroupConfig  # noqa
+
+register_config_group(DataGroupConfig, {"default": DataGroupConfig})

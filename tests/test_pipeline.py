@@ -20,8 +20,8 @@ def test_pipeline(tmp_path, capsys):
     cfg = parse(
         train_classifier_conf.Config,
         args=f"--debug_with_logging --dir.full {tmp_path / 'base'} "
-        "--train_data backdoor --train_data.original mnist "
-        "--train_data.backdoor corner --model mlp",
+        "--data.train backdoor --data.train.original mnist "
+        "--data.train.backdoor corner --model mlp",
         argument_generation_mode=ArgumentGenerationMode.NESTED,
     )
     run(train_classifier.main, cfg)
@@ -99,8 +99,8 @@ def test_pipeline(tmp_path, capsys):
     cfg = parse(
         train_classifier_conf.Config,
         args=f"--debug_with_logging --dir.full {tmp_path / 'wanet'} "
-        "--train_data backdoor --train_data.original gtsrb "
-        "--train_data.backdoor wanet --model mlp",
+        "--data.train backdoor --data.train.original gtsrb "
+        "--data.train.backdoor wanet --model mlp",
         argument_generation_mode=ArgumentGenerationMode.NESTED,
     )
     run(train_classifier.main, cfg)
@@ -108,3 +108,4 @@ def test_pipeline(tmp_path, capsys):
     assert (tmp_path / "wanet" / "config.yaml").is_file()
     assert (tmp_path / "wanet" / "model").is_dir()
     assert (tmp_path / "wanet" / "metrics.json").is_file()
+    assert cfg.data.train.backdoor._get_savefile_fullpath(tmp_path / "wanet").is_file()

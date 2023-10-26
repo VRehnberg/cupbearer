@@ -15,7 +15,11 @@ class PytorchConfig(DatasetConfig):
     # convenient to just make it a field here.
     num_classes: int
     train: bool = True
-    transforms: dict[str, Transform] = mutable_field({"to_numpy": ToNumpy()})
+    transforms: dict[str, Transform] = mutable_field(
+        {  # TODO https://github.com/VinAIResearch/Warping-based_Backdoor_Attack-release/blob/94453080f241053ac7c8cc4717da20806ee17e5c/utils/dataloader.py#L58
+            "to_numpy": ToNumpy(),
+        }
+    )
 
     @property
     def _dataset_kws(self):
@@ -26,7 +30,7 @@ class PytorchConfig(DatasetConfig):
             "download": True,
         }
 
-    def _build(self) -> Dataset:
+    def build(self) -> Dataset:
         dataset_cls = get_object(self.name)
         dataset = dataset_cls(**self._dataset_kws)  # type: ignore
         return dataset
@@ -42,6 +46,11 @@ class MNIST(PytorchConfig):
 class CIFAR10(PytorchConfig):
     name: str = "torchvision.datasets.CIFAR10"
     num_classes: int = 10
+    transforms: dict[str, Transform] = mutable_field(
+        {
+            "to_numpy": ToNumpy(),
+        }
+    )
 
 
 @dataclass

@@ -83,7 +83,7 @@ class TaskConfig(TaskConfigBase, ABC):
             self._init_train_data()
             assert self._train_data is not None, "init_train_data must set _train_data"
             self._train_data.max_size = self.max_train_size
-        return self._train_data.build()
+        return self._train_data.clean_build()
 
     def build_model(self) -> Model:
         if not self._model:
