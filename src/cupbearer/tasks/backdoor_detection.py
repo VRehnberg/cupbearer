@@ -6,11 +6,11 @@ import simple_parsing
 from cupbearer.data import (
     Backdoor,
     CornerPixelBackdoor,
+    DatasetConfig,
     NoiseBackdoor,
     WanetBackdoor,
 )
 from cupbearer.data.backdoor_data import BackdoorData
-from cupbearer.data.data_group import DataGroupConfig
 from cupbearer.models import StoredModel
 from cupbearer.utils.scripts import load_config
 
@@ -29,12 +29,13 @@ class BackdoorDetection(TaskConfig):
     )
 
     def _init_train_data(self):
-        data_cfg = load_config(self.get_path(), "data", DataGroupConfig)
+        data_cfg = load_config(self.get_path(), "train_data", DatasetConfig)
         # Remove the backdoor
-        self._train_data = data_cfg.train
+        self._train_data = data_cfg.original
 
     def _get_anomalous_test_data(self):
         copy = deepcopy(self._train_data)
+        assert 0, "TODO remove"
         if not self.no_load:
             self.backdoor.load(self.get_path())
         return BackdoorData(original=copy, backdoor=self.backdoor)

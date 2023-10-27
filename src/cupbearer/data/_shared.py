@@ -19,6 +19,14 @@ class Transform(BaseConfig, ABC):
     def __call__(self, sample):
         pass
 
+    def store(self, basepath):
+        """Save transform state to reproduce instance later."""
+        pass
+
+    def load(self, basepath):
+        """Load transform state to reproduce stored instance."""
+        pass
+
 
 @dataclass
 class AdaptedTransform(Transform, ABC):
@@ -56,28 +64,33 @@ class DatasetConfig(BaseConfig, ABC):
     transforms: dict[str, Transform] = field(default_factory=dict)
     max_size: Optional[int] = None
 
-    def __post__init__(self):
-        super().__post_init__()
-        if self.max_size is not None:
-            raise NotImplementedError("max_size has not been reimplemented yet")
-
     @abstractproperty
     def num_classes(self) -> int:
         pass
 
-    @property
-    def transform(self) -> Transform:
-        """Return a composed transform that should be applied to this dataset.
+    def get_transforms(self) -> list[Transform]:
+        """Return a list of transforms that should be applied to this dataset.
 
         Most subclasses won't need to override this, since it just returns
-        the transforms field by default.
+        the transforms field by default. But in some cases, we need to apply custom
+        processing to this that can't be handled in __post_init__ (see BackdoorData
+        for an example).
         """
-        return Compose(list(self.transforms.values()))
+        return list(self.transforms.values())
 
-    @abstractmethod
     def build(self) -> Dataset:
         """Create an instance of the Dataset described by this config."""
-        pass
+        dataset = self._build()
+        transform = Compose(self.get_transforms())
+        dataset = TransformDataset(dataset, transform)
+        if self.max_size:
+            assert self.max_size <= len(dataset)
+            dataset = Subset(dataset, range(self.max_size))
+        return dataset
+
+    def _build(self) -> Dataset:
+        # Not an abstractmethod because e.g. TestDataConfig overrides build() instead.
+        raise NotImplementedError
 
     def setup_and_validate(self):
         super().setup_and_validate()
@@ -246,5 +259,4 @@ class NoData(DatasetConfig):
     def num_classes(self):
         raise NotImplementedError
 
-    def build(self):
-        raise NotImplementedError
+    # build already raises NotImplementedError by default

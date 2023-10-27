@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 from cupbearer.scripts import eval_detector, train_classifier, train_detector
 from cupbearer.scripts.conf import (
@@ -20,8 +21,8 @@ def test_pipeline(tmp_path, capsys):
     cfg = parse(
         train_classifier_conf.Config,
         args=f"--debug_with_logging --dir.full {tmp_path / 'base'} "
-        "--data.train backdoor --data.train.original mnist "
-        "--data.train.backdoor corner --model mlp",
+        "--train_data backdoor --train_data.original mnist "
+        "--train_data.backdoor corner --model mlp",
         argument_generation_mode=ArgumentGenerationMode.NESTED,
     )
     run(train_classifier.main, cfg)
@@ -92,15 +93,20 @@ def test_pipeline(tmp_path, capsys):
     assert (tmp_path / "mahalanobis" / "histogram.pdf").is_file()
     assert (tmp_path / "mahalanobis" / "eval.json").is_file()
 
+
+@pytest.mark.slow
+def test_wanet(tmp_path, capsys):
     ############################
-    # WaNet training
+    # WaNet
     ############################
     logger.info("Running WaNet training")
     cfg = parse(
         train_classifier_conf.Config,
         args=f"--debug_with_logging --dir.full {tmp_path / 'wanet'} "
-        "--data.train backdoor --data.train.original gtsrb "
-        "--data.train.backdoor wanet --model mlp",
+        "--train_data backdoor --train_data.original gtsrb "
+        "--train_data.backdoor wanet --model mlp "
+        "--val_data.backdoor backdoor --val_data.backdoor.original gtsrb "
+        "--val_data.backdoor.backdoor wanet",
         argument_generation_mode=ArgumentGenerationMode.NESTED,
     )
     run(train_classifier.main, cfg)
@@ -108,4 +114,27 @@ def test_pipeline(tmp_path, capsys):
     assert (tmp_path / "wanet" / "config.yaml").is_file()
     assert (tmp_path / "wanet" / "model").is_dir()
     assert (tmp_path / "wanet" / "metrics.json").is_file()
-    assert cfg.data.train.backdoor._get_savefile_fullpath(tmp_path / "wanet").is_file()
+    # Check that NoData is handled correctly
+    for name, data_cfg in cfg.val_data.items():
+        if name == "backdoor":
+            assert np.allclose(
+                data_cfg.backdoor.warping_field,
+                cfg.train_data.backdoor.warping_field,
+            )
+        else:
+            with pytest.raises(NotImplementedError):
+                data_cfg.build()
+
+    # Check that from_run can load WanetBackdoor properly
+    # TODO error in train_detecter_conf
+    # train_detector_cfg = parse(
+    #    train_detector_conf.Config,
+    #    args=f"--debug_with_logging --dir.full {tmp_path / 'wanet-mahalanobis'} "
+    #    "--task backdoor --task.backdoor wanet "
+    #    "--detector mahalanobis",
+    #    argument_generation_mode=ArgumentGenerationMode.NESTED,
+    # )
+    # run(train_detector.main, train_detector_cfg)
+    # assert np.allclose(
+    #    train_detector_cfg.task.backdoor.control_grid,
+    #    cfg.train_data.backdoor.control_grid,

@@ -1,7 +1,7 @@
 import os
 from abc import ABC
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -16,27 +16,19 @@ from ._shared import Transform
 
 @dataclass
 class Backdoor(Transform, ABC):
-    p_backdoor: float = 1.0  # Probability of applying the transform
+    p_backdoor: float = 1.0  # Probability of applying the backdoor
     target_class: int = 0  # Target class when backdoor is applied
 
     def __post_init__(self):
         assert 0 <= self.p_backdoor <= 1, "Probability must be between 0 and 1"
-
-    def store(self, basepath):
-        """Save transform state to reproduce instance later."""
-        pass
-
-    def load(self, basepath):
-        """Load transform state to reproduce stored instance."""
-        pass
 
     def inject_backdoor(self, img: np.ndarray):
         # Not an abstractmethod because e.g. Wanet overrides __call__ instead
         raise NotImplementedError()
 
     def __call__(self, sample: Tuple[np.ndarray, int]) -> Tuple[np.ndarray, int]:
-        # No backdoor, don't do anything
         if torch.rand(1) > self.p_backdoor:
+            # Backdoor inactive, don't do anything
             return sample
 
         img, label = sample
@@ -51,7 +43,8 @@ class CornerPixelBackdoor(Backdoor):
     for RGB images it is set to (255, 0, 0) (red).
     """
 
-    corner: str = "top-left"  # Modify pixel in this corner, default "top-left"
+    corner: str = "top-left"  # Modify pixel in this corner, Can be one of:
+    # "top-left", "top-right", "bottom-left", "bottom-right".
 
     def __post_init__(self):
         super().__post_init__()
@@ -98,11 +91,19 @@ class WanetBackdoor(Backdoor):
     control_grid_width: int = 4  # Side length of unscaled warping field
     warping_strength: float = 0.5  # Strength of warping effect
     grid_rescale: float = 1.0  # Factor to rescale grid from warping effect
+    _control_grid: Optional[
+        tuple[
+            list[list[int]],
+            list[list[int]],
+        ]
+    ] = None  # Used for reproducibility, typically not set manually
 
     def __post_init__(self):
         super().__post_init__()
-        self._control_grid = None
         self._warping_field = None
+
+        # Init control_grid so that it is saved in config
+        self.control_grid
 
         assert 0 <= self.p_noise <= 1, "Probability must be between 0 and 1"
         assert (
@@ -118,12 +119,14 @@ class WanetBackdoor(Backdoor):
             # N.B. the 0.5 comes from how the original did their rescaling, see
             # https://github.com/ejnnr/cupbearer/pull/2#issuecomment-1688338610
             control_grid = control_grid * 0.5 * self.warping_strength
-            self._control_grid = control_grid
+            self._control_grid = tuple(control_grid.tolist())
+        else:
+            control_grid = np.array(self._control_grid)
 
         control_grid_shape = (2, self.control_grid_width, self.control_grid_width)
-        assert self._control_grid.shape == control_grid_shape
+        assert control_grid.shape == control_grid_shape
 
-        return self._control_grid
+        return control_grid
 
     @control_grid.setter
     def control_grid(self, control_grid: np.ndarray):

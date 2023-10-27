@@ -70,7 +70,7 @@ def main(cfg: Config):
     else:
         metrics_logger = DummyLogger()
 
-    dataset = cfg.data.train.build()
+    dataset = cfg.train_data.build()
     train_loader = DataLoader(
         dataset,
         batch_size=cfg.batch_size,
@@ -79,7 +79,7 @@ def main(cfg: Config):
     )
 
     val_loaders = {}
-    for k, v in cfg.data.val.items():
+    for k, v in cfg.val_data.items():
         dataset = v.build()
         val_loaders[k] = DataLoader(
             dataset,
@@ -115,10 +115,8 @@ def main(cfg: Config):
     )
     if cfg.dir.path:
         trainer.save_model()
-        try:
-            cfg.data.train.backdoor.store(cfg.dir.path)
-        except AttributeError:
-            pass
+        for trafo in cfg.train_data.get_transforms():
+            trafo.store(cfg.dir.path)
     trainer.close_loggers()
 
 

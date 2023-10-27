@@ -35,15 +35,13 @@ register_config_group(Transform, TRANSFORMS)
 register_config_group(Backdoor, BACKDOORS)
 
 # Need to import this after datasets and transforms have been registered,
-# since BackdoorData and ValidationConfig uses them in config groups.
+# since BackdoorData uses them in config groups.
 # noqa to prevent ruff from moving this line to the top.
 from .backdoor_data import BackdoorData  # noqa
-from .validation_config import ValidationConfig  # noqa
 
 register_config_option(DatasetConfig, "backdoor", BackdoorData)
+
+# Similarily ValidationConfig uses DatasetConfig and Backdoor
+from .validation_config import ValidationConfig  # noqa
+
 register_config_group(ValidationConfig, {"default": ValidationConfig})
-
-# Same here, DataGroupConfig uses ValidationConfig and DatasetConfig
-from .data_group import DataGroupConfig  # noqa
-
-register_config_group(DataGroupConfig, {"default": DataGroupConfig})

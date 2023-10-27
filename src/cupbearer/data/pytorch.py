@@ -30,7 +30,7 @@ class PytorchConfig(DatasetConfig):
             "download": True,
         }
 
-    def build(self) -> Dataset:
+    def _build(self) -> Dataset:
         dataset_cls = get_object(self.name)
         dataset = dataset_cls(**self._dataset_kws)  # type: ignore
         return dataset
@@ -46,11 +46,6 @@ class MNIST(PytorchConfig):
 class CIFAR10(PytorchConfig):
     name: str = "torchvision.datasets.CIFAR10"
     num_classes: int = 10
-    transforms: dict[str, Transform] = mutable_field(
-        {
-            "to_numpy": ToNumpy(),
-        }
-    )
 
 
 @dataclass

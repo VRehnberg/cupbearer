@@ -223,7 +223,7 @@ class AbstractionDetector(AnomalyDetector):
     ):
         # First sample, only input without label.
         # Also need to add a batch dimension
-        example_input = next(iter(dataset))[0][None, ...]
+        example_input = dataset[0][0][None]
         _, example_activations = self._model(example_input)
         self.rng, trainer_rng = jax.random.split(self.rng)
         trainer = AbstractionTrainer(

@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from functools import partial
 
 import numpy as np
 import pytest
@@ -31,7 +30,7 @@ class DummyConfig(data.DatasetConfig):
     # Doesn't apply or matter
     num_classes: int = 0
 
-    def build(self) -> Dataset:
+    def _build(self) -> Dataset:
         return DummyDataset(self.length, self.value)
 
 
@@ -62,11 +61,13 @@ class DummyImageConfig(data.DatasetConfig):
     num_classes: int = 10
     shape: tuple[int, int] = (8, 8)
 
-    def build(self) -> Dataset:
+    def _build(self) -> Dataset:
         return DummyImageData(self.length, self.num_classes, self.shape)
 
 
-# === Tests for TestDataMix ===
+#########################
+# Tests for TestDataMix
+#########################
 
 
 @pytest.fixture
@@ -157,12 +158,9 @@ def test_mixed_max_size(clean_config, anomalous_config):
         assert mixed_data[i] == ("b", 1)
 
 
-# === Tests for Backdoors ===
-
-
-# @pytest.fixture
-# def clean_image_dataset():
-#    return DummyImageDataset(9)
+#######################
+# Tests for Backdoors
+#######################
 
 
 @pytest.fixture
@@ -278,74 +276,3 @@ def test_wanet_backdoor(clean_image_config):
         assert np.max(clean_img) <= 1
         assert np.max(anoma_img) <= 1
         assert np.max(noise_img) <= 1
-
-
-# === Test DataGroupConfig ===
-
-
-def test_data_group_val_default(clean_image_config, BackdoorConfig):
-    data_group = data.DataGroupConfig(
-        train=data.BackdoorData(
-            original=clean_image_config,
-            backdoor=BackdoorConfig(),
-        ),
-    )
-    for sample in data_group.train.build():
-        img, label = sample
-        break
-
-
-@pytest.fixture(
-    params=[
-        data.backdoors.CornerPixelBackdoor,
-        data.backdoors.WanetBackdoor,
-    ]
-)
-def DeterministicBackdoorConfig(request):
-    return partial(request.param, p_backdoor=1.0)
-
-
-def test_data_group_same_backdoor(clean_image_config, DeterministicBackdoorConfig):
-    def get_backdoor_data():
-        return data.BackdoorData(
-            original=clean_image_config,
-            backdoor=DeterministicBackdoorConfig(p_backdoor=1.0),
-        )
-
-    # Test with all
-    data_group = data.DataGroupConfig(
-        train=get_backdoor_data(),
-        val=data.ValidationConfig(
-            val=get_backdoor_data(),
-            clean=get_backdoor_data(),  # not actually clean
-            custom=get_backdoor_data(),
-            backdoor=get_backdoor_data(),
-        ),
-    )
-    for samples in zip(
-        data_group.train.build(),
-        data_group.val.val.build(),
-        data_group.val.clean.build(),
-        data_group.val.custom.build(),
-        data_group.val.backdoor.build(),
-    ):
-        imgs, labels = zip(*samples)
-        assert all(np.allclose(imgs[0], img) for img in imgs)
-        assert all(labels[0] == label for label in labels)
-
-    # Test with some to see that NoData works as expected
-    data_group = data.DataGroupConfig(
-        train=get_backdoor_data(),
-        val=data.ValidationConfig(
-            val=get_backdoor_data(),
-            custom=get_backdoor_data(),
-        ),
-    )
-    for samples in zip(
-        data_group.train.build(),
-        data_group.val.val.build(),
-        data_group.val.custom.build(),
-    ):
-        imgs, labels = zip(*samples)
-        assert all(np.allclose(imgs[0], img) for img in imgs)
-        assert all(labels[0] == label for label in labels)
