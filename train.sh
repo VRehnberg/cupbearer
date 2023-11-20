@@ -5,12 +5,13 @@ root_dir="../cupbearer-experiments/"
 mkdir -p $root_dir
 cd "$root_dir"
 
+N=1
 model="mlp"
 dataset="mnist"
 backdoor="wanet"
 
 # Train classifier
-for lr in $(python -c "import numpy as np; print( *( 10 ** (-4 * np.random.rand(20) ) ) )"); do
+for lr in $(python -c "import numpy as np; print( *( 10 ** (-4 * np.random.rand($N) ) ) )"); do
     ts_model="$(date +%Y-%m-%d_%H-%M-%S)"
     task_dir="${model}/${dataset}/${backdoor}/${ts_model}/"
     # TODO second might not be unique if run in parallel
