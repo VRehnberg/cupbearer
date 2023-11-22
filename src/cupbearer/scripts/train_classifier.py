@@ -1,4 +1,5 @@
 import warnings
+from dataclasses import asdict
 
 import lightning as L
 from cupbearer.data.backdoor_data import BackdoorData
@@ -56,9 +57,15 @@ def main(cfg: Config):
     metrics_logger = None
 
     if cfg.dir.path is not None:
-        metrics_logger = TensorBoardLogger(
-            save_dir=cfg.dir.path, name="", version="", sub_dir="tensorboard"
-        )
+        if cfg.wandb:
+            from lightning.pytorch.loggers import WandbLogger
+
+            metrics_logger = WandbLogger(project="abstractions")
+            metrics_logger.experiment.config.update(asdict(cfg))
+        else:
+            metrics_logger = TensorBoardLogger(
+                save_dir=cfg.dir.path, name="", version="", sub_dir="tensorboard"
+            )
 
         for trafo in cfg.train_data.get_transforms():
             trafo.store(cfg.dir.path)
