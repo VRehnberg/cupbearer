@@ -128,6 +128,9 @@ class AbstractionDetector(ActivationBasedDetector):
         *,
         lr: float = 1e-3,
         batch_size: int = 64,
+        verbose: bool = False,
+        num_classes: int | None = None,
+        num_workers: int = 0,
         **trainer_kwargs,
     ):
         if trusted_data is None:
@@ -142,7 +145,10 @@ class AbstractionDetector(ActivationBasedDetector):
         )
 
         train_loader = torch.utils.data.DataLoader(
-            trusted_data, batch_size=batch_size, shuffle=True
+            trusted_data,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
         )
 
         # TODO: implement validation data
@@ -158,6 +164,8 @@ class AbstractionDetector(ActivationBasedDetector):
         # (which seems tricky to do manually).
         module.model = self.model
 
+        if "configure_optimizers" in trainer_kwargs:
+            trainer_kwargs.pop("configure_optimizers")
         trainer = L.Trainer(default_root_dir=save_path, **trainer_kwargs)
         trainer.fit(
             model=module,

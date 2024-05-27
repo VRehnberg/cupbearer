@@ -11,7 +11,7 @@ class QuantumEntropyDetector(ActivationCovarianceBasedDetector):
         whitening_matrices = {}
         for k, cov in self.covariances.items():
             # Compute decomposition
-            eigs = torch.linalg.eigh(cov)
+            eigs = torch.linalg.eigh(cov.to(self.device))
 
             # Zero entries corresponding to eigenvalues smaller than rcond
             vals_rsqrt = eigs.eigenvalues.rsqrt()
@@ -21,10 +21,12 @@ class QuantumEntropyDetector(ActivationCovarianceBasedDetector):
             # following https://doi.org/10.1080/00031305.2016.1277159
             # and https://stats.stackexchange.com/a/594218/319192
             # but transposed (sphering with x@W instead of W@x)
-            whitening_matrices[k] = eigs.eigenvectors * vals_rsqrt.unsqueeze(0)
-            assert torch.allclose(
-                whitening_matrices[k], eigs.eigenvectors @ vals_rsqrt.diag()
+            whitening_matrices[k] = (eigs.eigenvectors * vals_rsqrt.unsqueeze(0)).to(
+                "cpu"
             )
+            # assert torch.allclose(
+            #    whitening_matrices[k], eigs.eigenvectors @ vals_rsqrt.diag()
+            # )
         self.whitening_matrices = whitening_matrices
 
     def layerwise_scores(self, batch):

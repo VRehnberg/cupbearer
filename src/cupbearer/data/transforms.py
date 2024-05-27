@@ -54,6 +54,11 @@ class ToTensor(AdaptedTransform):
         return out
 
 
+class ToThreeChannels(AdaptedTransform):
+    def __img_call__(self, img: torch.Tensor) -> torch.Tensor:
+        return img[:3, :, :] if img.size(-3) >= 3 else img.repeat(3, 1, 1)
+
+
 @dataclass
 class Normalize(AdaptedTransform):
     mean: list[float]

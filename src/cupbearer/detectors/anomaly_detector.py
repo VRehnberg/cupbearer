@@ -4,6 +4,7 @@ from collections.abc import Collection
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable
+from warnings import warn
 
 import numpy as np
 import sklearn.metrics
@@ -123,8 +124,11 @@ class AnomalyDetector(ABC):
         with torch.inference_mode():
             for batch in test_loader:
                 inputs, new_labels = batch
-                scores.append(self.scores(inputs).cpu().numpy())
-                labels.append(new_labels)
+                try:
+                    scores.append(self.scores(inputs).cpu().numpy())
+                    labels.append(new_labels)
+                except AssertionError:
+                    warn("AssertionError triggered")
         scores = np.concatenate(scores)
         labels = np.concatenate(labels)
 

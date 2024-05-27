@@ -12,6 +12,7 @@ from .transforms import (
     RandomRotation,
     Resize,
     ToTensor,
+    ToThreeChannels,
     Transform,
 )
 
@@ -20,7 +21,9 @@ from .transforms import (
 class PytorchDataset(Dataset):
     name: str
     train: bool = True
-    transforms: list[Transform] = field(default_factory=lambda: [ToTensor()])
+    transforms: list[Transform] = field(
+        default_factory=lambda: [ToTensor(), ToThreeChannels()]
+    )
     default_augmentations: bool = True
     normalize: bool = False  # N.B. may give unexpected results on some tasks
 

@@ -17,7 +17,8 @@ class SpectralSignatureDetector(ActivationCovarianceBasedDetector):
     def post_covariance_training(self, **kwargs):
         # Calculate top right singular vectors from covariance matrices
         self.top_singular_vectors = {
-            k: torch.linalg.eigh(cov).eigenvectors[:, -1]
+            # TODO consider using lobpcg for memory reduction and speed-up
+            k: torch.linalg.eigh(cov.to(self.device)).eigenvectors[:, -1].to("cpu")
             for k, cov in self.covariances.items()
         }
 
@@ -27,7 +28,7 @@ class SpectralSignatureDetector(ActivationCovarianceBasedDetector):
         outlier_scores = {
             k: torch.einsum(
                 "bi,i->b",
-                (activations[k] - self.means[k]),
+                (activations[k].flatten(start_dim=1) - self.means[k]),
                 v,
             ).square()
             for k, v in self.top_singular_vectors.items()

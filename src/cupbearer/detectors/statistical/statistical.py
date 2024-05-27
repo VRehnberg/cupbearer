@@ -27,6 +27,7 @@ class StatisticalDetector(ActivationBasedDetector, ABC):
         batch_size: int = 1024,
         pbar: bool = True,
         max_steps: int | None = None,
+        num_workers: int = 0,
         **kwargs,
     ):
         # Common for statistical methods is that the training does not require
@@ -46,7 +47,9 @@ class StatisticalDetector(ActivationBasedDetector, ABC):
                 data = untrusted_data
 
             # No reason to shuffle, we're just computing statistics
-            data_loader = DataLoader(data, batch_size=batch_size, shuffle=False)
+            data_loader = DataLoader(
+                data, batch_size=batch_size, shuffle=False, num_workers=num_workers
+            )
             example_batch = next(iter(data_loader))
             _, example_activations = self.get_activations(example_batch)
 
@@ -67,6 +70,8 @@ class StatisticalDetector(ActivationBasedDetector, ABC):
 class ActivationCovarianceBasedDetector(StatisticalDetector):
     """Generic abstract detector that learns means and covariance matrices
     during training."""
+
+    device: str | torch.device = "cuda" if torch.cuda.is_available() else "cpu"
 
     def init_variables(self, activation_sizes: dict[str, torch.Size]):
         self._means = {

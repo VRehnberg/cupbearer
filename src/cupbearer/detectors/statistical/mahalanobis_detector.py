@@ -11,7 +11,11 @@ class MahalanobisDetector(ActivationCovarianceBasedDetector):
         self, rcond: float = 1e-5, relative: bool = False, **kwargs
     ):
         self.inv_covariances = {
-            k: torch.linalg.pinv(C, rcond=rcond, hermitian=True)
+            k: torch.linalg.pinv(
+                C.to(self.device),
+                rcond=rcond,
+                hermitian=True,
+            ).to("cpu")
             for k, C in self.covariances.items()
         }
         self.inv_diag_covariances = None
